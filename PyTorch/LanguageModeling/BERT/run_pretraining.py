@@ -279,6 +279,8 @@ def parse_arguments():
     parser.add_argument('--steps_this_run', type=int, default=-1,
                         help='If provided, only run this many steps before exiting')
 
+    parser.add_argument('--disable_weight_tying', default=False, action='store_true', help='Disable weight tying')
+
     args = parser.parse_args()
     args.fp16 = args.fp16 or args.amp
 
@@ -502,13 +504,22 @@ def main():
     device, args = setup_training(args)
     dllogger.log(step="PARAMETER", data={"Config": [str(args)]})
 
+    import torch.nn as nn
     # Prepare optimizer
     model, optimizer, lr_scheduler, checkpoint, global_step, criterion = prepare_model_and_optimizer(args, device)
+
+    if args.disable_weight_tying:
+        print ("WARNING!!!!!!! Disabling weight tying for this run")
+        print ("BEFORE ", model.cls.predictions.decoder.weight is model.bert.embeddings.word_embeddings.weight)
+        model.cls.predictions.decoder.weight = nn.Parameter(model.bert.embeddings.word_embeddings.weight)
+        print ("AFTER ", model.cls.predictions.decoder.weight is model.bert.embeddings.word_embeddings.weight)
 
     if is_main_process():
         dllogger.log(step="PARAMETER", data={"SEED": args.seed})
 
     raw_train_start = None
+
+
     if args.do_train:
         if is_main_process():
             dllogger.log(step="PARAMETER", data={"train_start": True})
