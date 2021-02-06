@@ -129,7 +129,7 @@ class BertPretrainingCriterion(torch.nn.Module):
         masked_lm_loss = self.loss_fn(prediction_scores.view(-1, self.vocab_size), masked_lm_labels.view(-1))
         next_sentence_loss = self.loss_fn(seq_relationship_score.view(-1, 2), next_sentence_labels.view(-1))
         total_loss = masked_lm_loss + next_sentence_loss
-        return total_loss
+        return total_loss, masked_lm_loss, next_sentence_loss
 
 
 def parse_arguments():
@@ -385,7 +385,8 @@ def prepare_model_and_optimizer(args, device):
                           lr=args.learning_rate)
     lr_scheduler = PolyWarmUpScheduler(optimizer, 
                                        warmup=args.warmup_proportion, 
-                                       total_steps=args.max_steps)
+                                       total_steps=args.max_steps,
+                                       degree=1)
     if args.fp16:
 
         if args.loss_scale == 0:
@@ -510,7 +511,7 @@ def main():
     if args.disable_weight_tying:
         print ("WARNING!!!!!!! Disabling weight tying for this run")
         print ("BEFORE ", model.cls.predictions.decoder.weight is model.bert.embeddings.word_embeddings.weight)
-        model.cls.predictions.decoder.weight = nn.Parameter(model.bert.embeddings.word_embeddings.weight)
+        model.cls.predictions.decoder.weight = torch.nn.Parameter(model.cls.predictions.decoder.weight.clone().detach())
         print ("AFTER ", model.cls.predictions.decoder.weight is model.bert.embeddings.word_embeddings.weight)
 
     if is_main_process():
@@ -600,15 +601,19 @@ def main():
                     batch = [t.to(device) for t in batch]
                     input_ids, segment_ids, input_mask, masked_lm_labels, next_sentence_labels = batch
                     prediction_scores, seq_relationship_score = model(input_ids=input_ids, token_type_ids=segment_ids, attention_mask=input_mask)
-                    loss = criterion(prediction_scores, seq_relationship_score, masked_lm_labels, next_sentence_labels)
+                    loss, mlm_loss, ns_loss = criterion(prediction_scores, seq_relationship_score, masked_lm_labels, next_sentence_labels)
                     if args.n_gpu > 1:
                         loss = loss.mean()  # mean() to average on multi-gpu.
+                        mlm_loss = mlm_loss.detach().mean()
+                        ns_loss = ns_loss.detach().mean()
 
                     divisor = args.gradient_accumulation_steps
                     if args.gradient_accumulation_steps > 1:
                         if not args.allreduce_post_accumulation:
                             # this division was merged into predivision
                             loss = loss / args.gradient_accumulation_steps
+                            mlm_loss = mlm_loss.detach() / args.gradient_accumulation_steps
+                            ns_loss = ns_loss.detach() / args.gradient_accumulation_steps
                             divisor = 1.0
                     if args.fp16:
                         with amp.scale_loss(loss, optimizer, delay_overflow_check=args.allreduce_post_accumulation) as scaled_loss:
@@ -638,7 +643,9 @@ def main():
                         if is_main_process():
                             dllogger.log(step=(epoch, global_step, ), data={"average_loss": average_loss / (args.log_freq * divisor),
                                                                             "step_loss": loss.item() * args.gradient_accumulation_steps / divisor,
-                                                                            "learning_rate": optimizer.param_groups[0]['lr']})
+                                                                            "learning_rate": optimizer.param_groups[0]['lr'],
+                                                                            "mlm_loss" : mlm_loss.item(),
+                                                                            "ns_loss" : ns_loss.item()})
                         average_loss = 0
 
 
