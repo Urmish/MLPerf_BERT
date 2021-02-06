@@ -278,7 +278,6 @@ def parse_arguments():
                         help='Disable tqdm progress bar')
     parser.add_argument('--steps_this_run', type=int, default=-1,
                         help='If provided, only run this many steps before exiting')
-
     parser.add_argument('--disable_weight_tying', default=False, action='store_true', help='Disable weight tying')
 
     args = parser.parse_args()
@@ -540,7 +539,7 @@ def main():
             restored_data_loader = None
             if not args.resume_from_checkpoint or epoch > 0 or (args.phase2 and global_step < 1) or args.init_checkpoint:
                 files = [os.path.join(args.input_dir, f) for f in os.listdir(args.input_dir) if
-                         os.path.isfile(os.path.join(args.input_dir, f)) and 'training' in f]
+                         os.path.isfile(os.path.join(args.input_dir, f)) and ('training' in f or 'train' in f)]
                 files.sort()
                 num_files = len(files)
                 random.Random(args.seed + epoch).shuffle(files)
@@ -597,7 +596,6 @@ def main():
                 if raw_train_start is None:
                     raw_train_start = time.time()
                 for step, batch in enumerate(train_iter):
-
                     training_steps += 1
                     batch = [t.to(device) for t in batch]
                     input_ids, segment_ids, input_mask, masked_lm_labels, next_sentence_labels = batch
@@ -617,6 +615,7 @@ def main():
                             scaled_loss.backward()
                     else:
                         loss.backward()
+
                     average_loss += loss.item()
 
                     if training_steps % args.gradient_accumulation_steps == 0:
