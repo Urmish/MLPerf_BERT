@@ -39,7 +39,7 @@ import multiprocessing
 
 from tokenization import BertTokenizer
 import modeling
-from apex.optimizers import FusedLAMB
+from apex.optimizers import FusedLAMB, FusedAdam
 from schedulers import PolyWarmUpScheduler
 
 from file_utils import PYTORCH_PRETRAINED_BERT_CACHE
@@ -381,7 +381,7 @@ def prepare_model_and_optimizer(args, device):
         {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
         {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}]
 
-    optimizer = FusedLAMB(optimizer_grouped_parameters, 
+    optimizer = FusedAdam(optimizer_grouped_parameters,
                           lr=args.learning_rate)
     lr_scheduler = PolyWarmUpScheduler(optimizer, 
                                        warmup=args.warmup_proportion, 
