@@ -351,6 +351,14 @@ def prepare_model_and_optimizer(args, device):
     modeling.ACT2FN["bias_gelu"] = modeling.bias_gelu_training
     model = modeling.BertForPreTraining(config)
 
+    if args.disable_weight_tying:
+        import torch.nn as nn
+        print ("WARNING!!!!!!! Disabling weight tying for this run")
+        print ("BEFORE ", model.cls.predictions.decoder.weight is model.bert.embeddings.word_embeddings.weight)
+        model.cls.predictions.decoder.weight = torch.nn.Parameter(model.cls.predictions.decoder.weight.clone().detach())
+        print ("AFTER ", model.cls.predictions.decoder.weight is model.bert.embeddings.word_embeddings.weight)
+        assert (model.cls.predictions.decoder.weight is model.bert.embeddings.word_embeddings.weight) == False
+
     checkpoint = None
     if not args.resume_from_checkpoint:
         global_step = 0
@@ -428,6 +436,12 @@ def prepare_model_and_optimizer(args, device):
 
     criterion = BertPretrainingCriterion(config.vocab_size)
 
+
+    if args.disable_weight_tying:
+       # Sanity Check that new param is in optimizer
+       print ("SANITY CHECK OPTIMIZER: ", id(model.module.cls.predictions.decoder.weight) in [id(g) for g in optimizer.param_groups[0]['params']])
+       assert id(model.module.cls.predictions.decoder.weight) in [id(g) for g in optimizer.param_groups[0]['params']]
+
     return model, optimizer, lr_scheduler, checkpoint, global_step, criterion
 
 def take_optimizer_step(args, optimizer, model, overflow_buf, global_step):
@@ -504,15 +518,13 @@ def main():
     device, args = setup_training(args)
     dllogger.log(step="PARAMETER", data={"Config": [str(args)]})
 
-    import torch.nn as nn
     # Prepare optimizer
     model, optimizer, lr_scheduler, checkpoint, global_step, criterion = prepare_model_and_optimizer(args, device)
 
     if args.disable_weight_tying:
-        print ("WARNING!!!!!!! Disabling weight tying for this run")
-        print ("BEFORE ", model.module.cls.predictions.decoder.weight is model.module.bert.embeddings.word_embeddings.weight)
-        model.module.cls.predictions.decoder.weight = torch.nn.Parameter(model.module.cls.predictions.decoder.weight.clone().detach())
-        print ("AFTER ", model.module.cls.predictions.decoder.weight is model.module.bert.embeddings.word_embeddings.weight)
+       # Sanity Check that new param is in optimizer
+       print ("SANITY CHECK OPTIMIZER: ", id(model.module.cls.predictions.decoder.weight) in [id(g) for g in optimizer.param_groups[0]['params']])
+       assert id(model.module.cls.predictions.decoder.weight) in [id(g) for g in optimizer.param_groups[0]['params']]
 
     if is_main_process():
         dllogger.log(step="PARAMETER", data={"SEED": args.seed})
