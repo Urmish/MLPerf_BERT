@@ -30,7 +30,8 @@ job_name=${13:-"bert_lamb_pretraining"}
 allreduce_post_accumulation=${14:-"true"}
 allreduce_post_accumulation_fp16=${15:-"true"}
 disable_weight_tie=${16:-"false"}
-DATASET=hdf5_lower_case_1_seq_len_128_max_pred_20_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5/cust_pubmed/
+DATASET=hdf5_lower_case_1_seq_len_512_max_pred_20_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5/cust_pubmed/
+echo "USING SS512!!!"
 DATA_DIR_PHASE1=${17:-$BERT_PREP_WORKING_DIR/${DATASET}/}
 BERT_CONFIG=bert_config.json
 DATASET2=hdf5_lower_case_1_seq_len_512_max_pred_80_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5_shard_1472_test_split_10/books_wiki_en_corpus/training # change this for other datasets
@@ -103,7 +104,7 @@ CMD+=" --output_dir=$CHECKPOINTS_DIR"
 CMD+=" --config_file=$BERT_CONFIG"
 CMD+=" --bert_model=bert-large-uncased"
 CMD+=" --train_batch_size=$train_batch_size"
-CMD+=" --max_seq_length=128"
+CMD+=" --max_seq_length=512"
 CMD+=" --max_predictions_per_seq=20"
 CMD+=" --max_steps=$train_steps"
 CMD+=" --warmup_proportion=$warmup_proportion"
@@ -132,6 +133,7 @@ CMD="python3 -m torch.distributed.launch --nproc_per_node=$num_gpus $CMD"
 
 if [ "$create_logfile" = "true" ] ; then
   export GBS=$(expr $train_batch_size \* $num_gpus)
+  echo "GLOBAL BATCH SIZE $GBS"
   printf -v TAG "pyt_bert_pretraining_phase1_%s_gbs%d" "$precision" $GBS
   DATESTAMP=`date +'%y%m%d%H%M%S'`
   LOGFILE=$RESULTS_DIR/$job_name.$TAG.$DATESTAMP.log
