@@ -14,26 +14,26 @@
 # limitations under the License.
 
 echo "Container nvidia build = " $NVIDIA_BUILD_ID
-train_batch_size=${1:-8192}
+train_batch_size=${1:-64}
 learning_rate=${2:-"6e-3"}
 precision=${3:-"fp16"}
-num_gpus=${4:-8}
+num_gpus=${4:-1}
 warmup_proportion=${5:-"0.2843"}
 train_steps=${6:-7038}
 save_checkpoint_steps=${7:-200}
 resume_training=${8:-"false"}
 create_logfile=${9:-"true"}
 accumulate_gradients=${10:-"true"}
-gradient_accumulation_steps=${11:-128}
+gradient_accumulation_steps=${11:-64}
 seed=${12:-12439}
 job_name=${13:-"bert_lamb_pretraining"}
 allreduce_post_accumulation=${14:-"true"}
 allreduce_post_accumulation_fp16=${15:-"true"}
 disable_weight_tie=${16:-"false"}
-DATASET=hdf5_lower_case_1_seq_len_512_max_pred_20_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5/cust_pubmed/
+DATASET=mlperf_ss128/cust_pubmed/
 echo "USING SS512!!!"
 DATA_DIR_PHASE1=${17:-$BERT_PREP_WORKING_DIR/${DATASET}/}
-BERT_CONFIG=bert_config.json
+BERT_CONFIG=gpt2_xl_config.json
 DATASET2=hdf5_lower_case_1_seq_len_512_max_pred_80_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5_shard_1472_test_split_10/books_wiki_en_corpus/training # change this for other datasets
 CODEDIR=${18:-"/workspace/bert"}
 init_checkpoint=${19:-"None"}
@@ -98,7 +98,7 @@ fi
 
 echo $DATA_DIR_PHASE1
 INPUT_DIR=$DATA_DIR_PHASE1
-CMD=" $CODEDIR/run_pretraining.py"
+CMD=" $CODEDIR/run_pretraining_gpt2.py"
 CMD+=" --input_dir=$DATA_DIR_PHASE1"
 CMD+=" --output_dir=$CHECKPOINTS_DIR"
 CMD+=" --config_file=$BERT_CONFIG"
