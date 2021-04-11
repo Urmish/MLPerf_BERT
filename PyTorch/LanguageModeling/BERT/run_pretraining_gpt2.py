@@ -96,8 +96,7 @@ class pretraining_dataset(Dataset):
         self.input_file = input_file
         self.max_pred_length = max_pred_length
         f = h5py.File(input_file, "r")
-        keys = ['input_ids', 'input_mask', 'segment_ids', 'masked_lm_positions', 'masked_lm_ids',
-                'next_sentence_labels']
+        keys = ['input_ids']
         self.inputs = [np.asarray(f[key][:]) for key in keys]
         f.close()
 
@@ -107,25 +106,26 @@ class pretraining_dataset(Dataset):
 
     def __getitem__(self, index):
 
-        [input_ids, input_mask, segment_ids, masked_lm_positions, masked_lm_ids, next_sentence_labels] = [
-            torch.from_numpy(input[index].astype(np.int64)) if indice < 5 else torch.from_numpy(
-                np.asarray(input[index].astype(np.int64))) for indice, input in enumerate(self.inputs)]
+        #[input_ids, input_mask, segment_ids, masked_lm_positions, masked_lm_ids, next_sentence_labels] = [
+        #    torch.from_numpy(input[index].astype(np.int64)) if indice < 5 else torch.from_numpy(
+        #        np.asarray(input[index].astype(np.int64))) for indice, input in enumerate(self.inputs)]
+        inputs = [torch.from_numpy(input[index].astype(np.int64)) if indice < 5 else torch.from_numpy(np.asarray(input[index].astype(np.int64))) for indice, input in enumerate(self.inputs)]
+        return inputs
+        #masked_lm_labels = torch.ones(input_ids.shape, dtype=torch.long) * -1
+        #index = self.max_pred_length
+        ## store number of  masked tokens in index
+        #padded_mask_indices = (masked_lm_positions == 0).nonzero()
+        #if len(padded_mask_indices) != 0:
+        #    index = padded_mask_indices[0].item()
+        #masked_lm_labels[masked_lm_positions[:index]] = masked_lm_ids[:index]
 
-        masked_lm_labels = torch.ones(input_ids.shape, dtype=torch.long) * -1
-        index = self.max_pred_length
-        # store number of  masked tokens in index
-        padded_mask_indices = (masked_lm_positions == 0).nonzero()
-        if len(padded_mask_indices) != 0:
-            index = padded_mask_indices[0].item()
-        masked_lm_labels[masked_lm_positions[:index]] = masked_lm_ids[:index]
-
-        return [input_ids, segment_ids, input_mask,
-                masked_lm_labels, next_sentence_labels]
+        #return [input_ids, segment_ids, input_mask,
+        #        masked_lm_labels, next_sentence_labels]
 
 class BertPretrainingCriterion(torch.nn.Module):
     def __init__(self, vocab_size):
         super(BertPretrainingCriterion, self).__init__()
-        self.loss_fn = torch.nn.CrossEntropyLoss(ignore_index=-1)
+        self.loss_fn = torch.nn.CrossEntropyLoss(ignore_index=-100)
         self.vocab_size = vocab_size
     def forward(self, prediction_scores, seq_relationship_score, masked_lm_labels, next_sentence_labels):
         masked_lm_loss = self.loss_fn(prediction_scores.view(-1, self.vocab_size), masked_lm_labels.view(-1))
@@ -168,7 +168,7 @@ def parse_arguments():
                         help="The initial checkpoint to start training from.")
 
     parser.add_argument("--max_seq_length",
-                        default=512,
+                        default=1024,
                         type=int,
                         help="The maximum total input sequence length after WordPiece tokenization. \n"
                              "Sequences longer than this will be truncated, and sequences shorter \n"
@@ -570,7 +570,7 @@ def main():
                 # may not exist in all checkpoints
                 epoch = checkpoint.get('epoch', 0)
                 restored_data_loader = checkpoint.get('data_loader', None)
-
+ 
             shared_file_list = {}
 
             if torch.distributed.is_initialized() and get_world_size() > num_files:
@@ -616,7 +616,8 @@ def main():
                 for step, batch in enumerate(train_iter):
                     training_steps += 1
                     batch = [t.to(device) for t in batch]
-                    input_ids, segment_ids, input_mask, masked_lm_labels, next_sentence_labels = batch
+                    #input_ids, segment_ids, input_mask, masked_lm_labels, next_sentence_labels = batch
+                    input_ids = batch[0]
                     labels = input_ids
                     loss = model(input_ids, None, None, None, None, None, None, None, None,labels,None,None,None,False)[0]
                     #seq_relationship_score = 0
