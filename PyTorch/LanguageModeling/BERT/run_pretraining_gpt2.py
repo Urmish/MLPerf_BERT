@@ -387,7 +387,12 @@ def prepare_model_and_optimizer(args, device):
 
     model.to(device)
     param_optimizer = list(model.named_parameters())
-    no_decay = ['bias', 'gamma', 'beta', 'LayerNorm']
+    #no_decay = ['bias', 'gamma', 'beta', 'LayerNorm']
+    no_decay = ['bias']
+    for name, params in model.named_parameters():
+        if "ln" in name:
+            no_decay.append(name)
+
     
     optimizer_grouped_parameters = [
         {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
