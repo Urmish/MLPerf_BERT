@@ -355,6 +355,7 @@ def prepare_model_and_optimizer(args, device):
     #modeling.ACT2FN["bias_gelu"] = modeling.bias_gelu_training
     #model = modeling.BertForPreTraining(config)
     model = AutoModelForCausalLM.from_config(config)
+    model.eval()
 
     if args.disable_weight_tying:
         import torch.nn as nn
@@ -378,8 +379,44 @@ def prepare_model_and_optimizer(args, device):
             checkpoint = torch.load(os.path.join(args.output_dir, "ckpt_{}.pt".format(global_step)), map_location="cpu")
         else:
             checkpoint = torch.load(args.init_checkpoint, map_location="cpu")
+        import copy
 
-        model.load_state_dict(checkpoint['model'], strict=False)
+        checkpoint['model']['bert.embeddings.word_embeddings.weight'] = torch.cat((checkpoint['model']['bert.embeddings.word_embeddings.weight'], torch.zeros(6, 1024)), dim = 0)
+
+        #checkpoint['model']['cls.predictions.decoder.weight'] = torch.cat((checkpoint['model']['cls.predictions.decoder.linear1.weight'], checkpoint['model']['cls.predictions.decoder.linear2.weight'], checkpoint['model']['cls.predictions.decoder.linear3.weight'], checkpoint['model']['cls.predictions.decoder.linear4.weight']), dim = 0)
+        #del checkpoint['model']['cls.predictions.decoder.linear1.weight']
+        #del checkpoint['model']['cls.predictions.decoder.linear2.weight']
+        #del checkpoint['model']['cls.predictions.decoder.linear3.weight']
+        #del checkpoint['model']['cls.predictions.decoder.linear4.weight']
+
+        #checkpoint['model']['cls.predictions.bias'] = torch.cat((checkpoint['model']['cls.predictions.decoder.linear1.bias'], checkpoint['model']['cls.predictions.decoder.linear2.bias'], checkpoint['model']['cls.predictions.decoder.linear3.bias'], checkpoint['model']['cls.predictions.decoder.linear4.bias']), dim=0)
+        #del checkpoint['model']['cls.predictions.decoder.linear1.bias']
+        #del checkpoint['model']['cls.predictions.decoder.linear2.bias']
+        #del checkpoint['model']['cls.predictions.decoder.linear3.bias']
+        #del checkpoint['model']['cls.predictions.decoder.linear4.bias']
+
+
+        checkpoint['model']['cls.predictions.decoder.weight'] = torch.cat((checkpoint['model']['cls.predictions.decoder.weight'], torch.zeros(6, 1024)), dim = 0)
+        checkpoint['model']['cls.predictions.bias'] = torch.cat((checkpoint['model']['cls.predictions.bias'], torch.zeros(6)), dim = 0)
+
+        del checkpoint['model']['bert.embeddings.position_ids']
+
+        keys = list(checkpoint['model'].keys())[:]
+
+        for name in keys:
+            if '.intermediate.dense' in name:
+                checkpoint['model'][name.replace('intermediate.dense', 'intermediate.dense_act')] = checkpoint['model'][name]
+                del checkpoint['model'][name]
+
+            if 'pooler.dense' in name:
+                checkpoint['model'][name.replace('pooler.dense', 'pooler.dense_act')] = checkpoint['model'][name]
+                del checkpoint['model'][name]
+
+            if 'transform.dense' in name:
+                checkpoint['model'][name.replace('transform.dense', 'transform.dense_act')] = checkpoint['model'][name]
+                del checkpoint['model'][name]
+
+        model.load_state_dict(checkpoint['model'], strict=True)
         
         if args.phase2 and not args.init_checkpoint:
             global_step -= args.phase1_end_step
@@ -387,72 +424,73 @@ def prepare_model_and_optimizer(args, device):
             print("resume step from ", args.resume_step)
 
     model.to(device)
-    param_optimizer = list(model.named_parameters())
-    #no_decay = ['bias', 'gamma', 'beta', 'LayerNorm']
-    no_decay = ['bias']
-    for name, params in model.named_parameters():
-        if "ln" in name:
-            no_decay.append(name)
+    #param_optimizer = list(model.named_parameters())
+    ##no_decay = ['bias', 'gamma', 'beta', 'LayerNorm']
+    #no_decay = ['bias']
+    #for name, params in model.named_parameters():
+    #    if "ln" in name:
+    #        no_decay.append(name)
 
-    
-    optimizer_grouped_parameters = [
-        {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.1},
-        {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}]
+    #
+    #optimizer_grouped_parameters = [
+    #    {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.1},
+    #    {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}]
 
-    optimizer = FusedAdam(optimizer_grouped_parameters,
-                          lr=args.learning_rate)
-    #lr_scheduler = PolyWarmUpScheduler(optimizer, 
-    lr_scheduler = CosineWarmUpSchedulerWithMinVal(optimizer, 
-                                       warmup=args.warmup_proportion, 
-                                       total_steps=args.max_steps)
+    #optimizer = FusedAdam(optimizer_grouped_parameters,
+    #                      lr=args.learning_rate)
+    ##lr_scheduler = PolyWarmUpScheduler(optimizer, 
+    #lr_scheduler = CosineWarmUpSchedulerWithMinVal(optimizer, 
+    #                                   warmup=args.warmup_proportion, 
+    #                                   total_steps=args.max_steps)
                                        #degree=1)
-    if args.fp16:
+    #if args.fp16:
 
-        if args.loss_scale == 0:
-            model, optimizer = amp.initialize(model, optimizer, opt_level="O2", loss_scale="dynamic", cast_model_outputs=torch.float16)
-        else:
-            model, optimizer = amp.initialize(model, optimizer, opt_level="O2", loss_scale=args.loss_scale, cast_model_outputs=torch.float16)
-        amp._amp_state.loss_scalers[0]._loss_scale = args.init_loss_scale
-    #model.checkpoint_activations(args.checkpoint_activations)
+    #    if args.loss_scale == 0:
+    #        model, optimizer = amp.initialize(model, optimizer, opt_level="O2", loss_scale="dynamic", cast_model_outputs=torch.float16)
+    #    else:
+    #        model, optimizer = amp.initialize(model, optimizer, opt_level="O2", loss_scale=args.loss_scale, cast_model_outputs=torch.float16)
+    #    amp._amp_state.loss_scalers[0]._loss_scale = args.init_loss_scale
+    ##model.checkpoint_activations(args.checkpoint_activations)
 
-    if args.resume_from_checkpoint:
-        if args.phase2 or args.init_checkpoint:
-            keys = list(checkpoint['optimizer']['state'].keys())
-            #Override hyperparameters from previous checkpoint
-            for key in keys:
-                checkpoint['optimizer']['state'][key]['step'] = global_step
-            for iter, item in enumerate(checkpoint['optimizer']['param_groups']):
-                checkpoint['optimizer']['param_groups'][iter]['step'] = global_step
-                checkpoint['optimizer']['param_groups'][iter]['t_total'] = args.max_steps
-                checkpoint['optimizer']['param_groups'][iter]['warmup'] = args.warmup_proportion
-                checkpoint['optimizer']['param_groups'][iter]['lr'] = args.learning_rate
-        optimizer.load_state_dict(checkpoint['optimizer'])  # , strict=False)
+    #if False:
+    #    if args.phase2 or args.init_checkpoint:
+    #        keys = list(checkpoint['optimizer']['state'].keys())
+    #        #Override hyperparameters from previous checkpoint
+    #        for key in keys:
+    #            checkpoint['optimizer']['state'][key]['step'] = global_step
+    #        for iter, item in enumerate(checkpoint['optimizer']['param_groups']):
+    #            checkpoint['optimizer']['param_groups'][iter]['step'] = global_step
+    #            checkpoint['optimizer']['param_groups'][iter]['t_total'] = args.max_steps
+    #            checkpoint['optimizer']['param_groups'][iter]['warmup'] = args.warmup_proportion
+    #            checkpoint['optimizer']['param_groups'][iter]['lr'] = args.learning_rate
+    #    optimizer.load_state_dict(checkpoint['optimizer'])  # , strict=False)
 
-        # Restore AMP master parameters          
-        if args.fp16:
-            optimizer._lazy_init_maybe_master_weights()
-            optimizer._amp_stash.lazy_init_called = True
-            optimizer.load_state_dict(checkpoint['optimizer'])
-            for param, saved_param in zip(amp.master_params(optimizer), checkpoint['master params']):
-                param.data.copy_(saved_param.data)
+    #    # Restore AMP master parameters          
+    #    if args.fp16:
+    #        optimizer._lazy_init_maybe_master_weights()
+    #        optimizer._amp_stash.lazy_init_called = True
+    #        optimizer.load_state_dict(checkpoint['optimizer'])
+    #        for param, saved_param in zip(amp.master_params(optimizer), checkpoint['master params']):
+    #            param.data.copy_(saved_param.data)
 
-    if args.local_rank != -1:
-        if not args.allreduce_post_accumulation:
-            model = DDP(model, message_size=250000000, gradient_predivide_factor=get_world_size())
-        else:
-            flat_dist_call([param.data for param in model.parameters()], torch.distributed.broadcast, (0,) )
-    elif args.n_gpu > 1:
-        model = torch.nn.DataParallel(model)
+    #if args.local_rank != -1:
+    #    if not args.allreduce_post_accumulation:
+    #        model = DDP(model, message_size=250000000, gradient_predivide_factor=get_world_size())
+    #    else:
+    #        flat_dist_call([param.data for param in model.parameters()], torch.distributed.broadcast, (0,) )
+    #elif args.n_gpu > 1:
+    #    model = torch.nn.DataParallel(model)
 
     criterion = BertPretrainingCriterion(config.vocab_size)
 
 
-    if args.disable_weight_tying:
-       # Sanity Check that new param is in optimizer
-       print ("SANITY CHECK OPTIMIZER: ", id(model.module.cls.predictions.decoder.weight) in [id(g) for g in optimizer.param_groups[0]['params']])
-       assert id(model.module.cls.predictions.decoder.weight) in [id(g) for g in optimizer.param_groups[0]['params']]
+    #if args.disable_weight_tying:
+    #   # Sanity Check that new param is in optimizer
+    #   print ("SANITY CHECK OPTIMIZER: ", id(model.module.cls.predictions.decoder.weight) in [id(g) for g in optimizer.param_groups[0]['params']])
+    #   assert id(model.module.cls.predictions.decoder.weight) in [id(g) for g in optimizer.param_groups[0]['params']]
 
-    return model, optimizer, lr_scheduler, checkpoint, global_step, criterion
+    #return model, optimizer, lr_scheduler, checkpoint, global_step, criterion
+    return model, None, None, checkpoint, global_step, criterion
 
 def take_optimizer_step(args, optimizer, model, overflow_buf, global_step):
 
@@ -529,6 +567,7 @@ def main():
     dllogger.log(step="PARAMETER", data={"Config": [str(args)]})
 
     # Prepare optimizer
+    import torch.nn as nn
     model, optimizer, lr_scheduler, checkpoint, global_step, criterion = prepare_model_and_optimizer(args, device)
 
     if args.disable_weight_tying:
@@ -550,7 +589,7 @@ def main():
             dllogger.log(step="PARAMETER", data={"batch_size_per_gpu": args.train_batch_size})
             dllogger.log(step="PARAMETER", data={"learning_rate": args.learning_rate})
 
-        model.train()
+        model.eval()
         most_recent_ckpts_paths = []
         average_loss = 0.0  # averaged loss every args.log_freq steps
         epoch = 0
@@ -559,12 +598,12 @@ def main():
         pool = ProcessPoolExecutor(1)
 
         # Note: We loop infinitely over epochs, termination is handled via iteration count
-        while True:
+        for i in range(0,1):
             thread = None
             restored_data_loader = None
             if not args.resume_from_checkpoint or epoch > 0 or (args.phase2 and global_step < 1) or args.init_checkpoint:
                 files = [os.path.join(args.input_dir, f) for f in os.listdir(args.input_dir) if
-                         os.path.isfile(os.path.join(args.input_dir, f)) and ('training' in f or 'train' in f)]
+                         os.path.isfile(os.path.join(args.input_dir, f)) and ('test' in f or 'test' in f)]
                 files.sort()
                 num_files = len(files)
                 random.Random(args.seed + epoch).shuffle(files)
@@ -604,7 +643,10 @@ def main():
             if args.allreduce_post_accumulation:
                 overflow_buf = torch.cuda.IntTensor([0])
 
+            relevant_files = [250, 56, 162, 22, 240, 153]
             for f_id in range(f_start_id + 1 , len(files)):
+                if not f_id in relevant_files:
+                    continue
                 
    
                 if get_world_size() > num_files:
@@ -642,17 +684,17 @@ def main():
                             #mlm_loss = mlm_loss.detach() / args.gradient_accumulation_steps
                             #ns_loss = ns_loss.detach() / args.gradient_accumulation_steps
                             divisor = 1.0
-                    if args.fp16:
-                        with amp.scale_loss(loss, optimizer, delay_overflow_check=args.allreduce_post_accumulation) as scaled_loss:
-                            scaled_loss.backward()
-                    else:
-                        loss.backward()
+                    #if args.fp16:
+                    #    with amp.scale_loss(loss, optimizer, delay_overflow_check=args.allreduce_post_accumulation) as scaled_loss:
+                    #        scaled_loss.backward()
+                    #else:
+                    #    loss.backward()
 
                     average_loss += loss.item()
 
-                    if training_steps % args.gradient_accumulation_steps == 0:
-                        lr_scheduler.step()  # learning rate warmup
-                        global_step = take_optimizer_step(args, optimizer, model, overflow_buf, global_step)
+                    #if training_steps % args.gradient_accumulation_steps == 0:
+                    #    lr_scheduler.step()  # learning rate warmup
+                    #    global_step = take_optimizer_step(args, optimizer, model, overflow_buf, global_step)
 
                     if global_step >= args.steps_this_run or timeout_sent:
                         train_time_raw = time.time() - raw_train_start
