@@ -168,7 +168,7 @@ def parse_arguments():
                         help="The initial checkpoint to start training from.")
 
     parser.add_argument("--max_seq_length",
-                        default=1024,
+                        default=2048,
                         type=int,
                         help="The maximum total input sequence length after WordPiece tokenization. \n"
                              "Sequences longer than this will be truncated, and sequences shorter \n"
@@ -623,8 +623,8 @@ def main():
                     batch = [t.to(device) for t in batch]
                     #input_ids, segment_ids, input_mask, masked_lm_labels, next_sentence_labels = batch
                     input_ids = batch[0]
-                    input_ids = torch.cat([input_ids,torch.ones((input_ids.shape[0],1024),dtype=input_ids.dtype).cuda()*-100],dim=1)
-                    labels = input_ids
+                    input_ids = torch.cat([input_ids,torch.ones((input_ids.shape[0],1024),dtype=input_ids.dtype).cuda()],dim=1)
+                    labels = torch.cat([batch[0],torch.ones((input_ids.shape[0],1024),dtype=input_ids.dtype).cuda()*-100],dim=1)
                     loss = model(input_ids, None, None, None, None, None, None, None, None,labels,None,None,None,False)[0]
                     #seq_relationship_score = 0
                     #loss, mlm_loss, ns_loss = criterion(prediction_scores, seq_relationship_score, labels[1:])

@@ -362,30 +362,37 @@ def prepare_model_and_optimizer(args, device):
         model.cls.predictions.decoder.weight = torch.nn.Parameter(model.cls.predictions.decoder.weight.clone().detach())
         print ("AFTER ", model.cls.predictions.decoder.weight is model.bert.embeddings.word_embeddings.weight)
         assert (model.cls.predictions.decoder.weight is model.bert.embeddings.word_embeddings.weight) == False
-
-    checkpoint = None
-    if not args.resume_from_checkpoint:
-        global_step = 0
-    else:
-        if args.resume_step == -1 and not args.init_checkpoint:
-            model_names = [f for f in os.listdir(args.output_dir) if f.endswith(".pt")]
-            args.resume_step = max([int(x.split('.pt')[0].split('_')[1].strip()) for x in model_names])
-
-        global_step = args.resume_step if not args.init_checkpoint else 0
-
-        if not args.init_checkpoint:
-            checkpoint = torch.load(os.path.join(args.output_dir, "ckpt_{}.pt".format(global_step)), map_location="cpu")
+    #for ckpt in ['19986','29983','39979','49975','9989']:
+    for ckpt in ['69969']:
+        checkpoint = None
+        if not args.resume_from_checkpoint:
+            global_step = 0
         else:
-            checkpoint = torch.load(args.init_checkpoint, map_location="cpu")
+            if args.resume_step == -1 and not args.init_checkpoint:
+                model_names = [f for f in os.listdir(args.output_dir) if f.endswith(".pt")]
+                args.resume_step = max([int(x.split('.pt')[0].split('_')[1].strip()) for x in model_names])
 
-        model.load_state_dict(checkpoint['model'], strict=False)
-        
-        if args.phase2 and not args.init_checkpoint:
-            global_step -= args.phase1_end_step
-        if is_main_process():
-            print("resume step from ", args.resume_step)
-    model.to(device)
-    torch.save(model.state_dict(),args.output_dir+"/easier_ckpt.pt")
+            global_step = args.resume_step if not args.init_checkpoint else 0
+
+            if not args.init_checkpoint:
+                checkpoint = torch.load(os.path.join(args.output_dir, "ckpt_{}.pt".format(global_step)), map_location="cpu")
+            else:
+#                checkpoint = torch.load(args.init_checkpoint, map_location="cpu")
+                checkpoint = torch.load('results_gpt2_bs512_correctLR_WD/checkpoints_bert_lamb_pretraining/ckpt_'+ckpt+'.pt', map_location="cpu")
+
+            model.load_state_dict(checkpoint['model'], strict=False)
+            if args.phase2 and not args.init_checkpoint:
+                global_step -= args.phase1_end_step
+            if is_main_process():
+                print("resume step from ", args.resume_step)
+        model.to(device)
+        save_state = {
+            'model': model.state_dict(),
+            'optimizer': checkpoint['optimizer']
+        }
+
+        torch.save(save_state,"results_gpt2_bs512_correctLR_WD/clean_ckpt/ckpt_"+ckpt+".pt")
+    import pdb;pdb.set_trace()
     param_optimizer = list(model.named_parameters())
     no_decay = ['bias', 'gamma', 'beta', 'LayerNorm']
     

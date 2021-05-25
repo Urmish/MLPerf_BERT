@@ -36,7 +36,7 @@ DATA_DIR_PHASE1=${17:-$BERT_PREP_WORKING_DIR/${DATASET}/}
 BERT_CONFIG=gpt2_xl_config.json
 DATASET2=hdf5_lower_case_1_seq_len_512_max_pred_80_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5_shard_1472_test_split_10/books_wiki_en_corpus/training # change this for other datasets
 CODEDIR=${18:-"/workspace/bert"}
-init_checkpoint=${19:-"results_gpt2_bs512/checkpoints_bert_lamb_pretraining/ckpt_29979.pt"}
+init_checkpoint=${19:-"results_gpt2_bs512_correctLR_WD/checkpoints_bert_lamb_pretraining/ckpt_9989.pt"}
 RESULTS_DIR=$CODEDIR/temp
 CHECKPOINTS_DIR=$RESULTS_DIR/checkpoints_${job_name}
 

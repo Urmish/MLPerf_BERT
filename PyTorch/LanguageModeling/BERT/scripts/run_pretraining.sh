@@ -37,7 +37,7 @@ BERT_CONFIG=gpt2_xl_config.json
 DATASET2=hdf5_lower_case_1_seq_len_512_max_pred_80_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5_shard_1472_test_split_10/books_wiki_en_corpus/training # change this for other datasets
 CODEDIR=${18:-"/workspace/bert"}
 init_checkpoint=${19:-"None"}
-RESULTS_DIR=$CODEDIR/results_gpt2_bs512
+RESULTS_DIR=$CODEDIR/results_gpt2_bs512_correctLR_WD_2
 CHECKPOINTS_DIR=$RESULTS_DIR/checkpoints_${job_name}
 
 mkdir -p $CHECKPOINTS_DIR
@@ -128,7 +128,7 @@ if [ "$disable_weight_tie" == "false" ] ; then
 	CMD+=" --json-summary ${RESULTS_DIR}/dllogger.json "
 fi
 
-CMD="python3 -m torch.distributed.launch --nproc_per_node=$num_gpus $CMD"
+CMD="python3 -m torch.distributed.launch --nproc_per_node=$num_gpus $CMD "
 
 
 if [ "$create_logfile" = "true" ] ; then

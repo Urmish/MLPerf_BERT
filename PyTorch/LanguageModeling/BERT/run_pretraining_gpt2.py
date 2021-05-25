@@ -41,6 +41,7 @@ from tokenization import BertTokenizer
 import modeling
 from apex.optimizers import FusedLAMB, FusedAdam
 from schedulers import PolyWarmUpScheduler
+from schedulers import CosineWarmUpSchedulerWithMinVal
 
 from file_utils import PYTORCH_PRETRAINED_BERT_CACHE
 from utils import is_main_process, format_step, get_world_size, get_rank
@@ -395,15 +396,16 @@ def prepare_model_and_optimizer(args, device):
 
     
     optimizer_grouped_parameters = [
-        {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
+        {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.1},
         {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}]
 
     optimizer = FusedAdam(optimizer_grouped_parameters,
                           lr=args.learning_rate)
-    lr_scheduler = PolyWarmUpScheduler(optimizer, 
+    #lr_scheduler = PolyWarmUpScheduler(optimizer, 
+    lr_scheduler = CosineWarmUpSchedulerWithMinVal(optimizer, 
                                        warmup=args.warmup_proportion, 
-                                       total_steps=args.max_steps,
-                                       degree=1)
+                                       total_steps=args.max_steps)
+                                       #degree=1)
     if args.fp16:
 
         if args.loss_scale == 0:
