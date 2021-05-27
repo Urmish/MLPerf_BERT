@@ -380,7 +380,8 @@ def prepare_model_and_optimizer(args, device):
         else:
             checkpoint = torch.load(args.init_checkpoint, map_location="cpu")
         import copy
-        checkpoint['model']['transformer.wte.weight'] = torch.cat((checkpoint['model']['transformer.wte.weight'],torch.ones(4, 1600)*-10000), dim = 0)
+        checkpoint['model']['transformer.wte.weight'] = torch.cat((checkpoint['model']['transformer.wte.weight'],torch.ones(4, 1600)*0), dim = 0)
+        checkpoint['model']['lm_head.weight'] = torch.cat((checkpoint['model']['lm_head.weight'],torch.ones(4, 1600)*0), dim = 0)
         for name in checkpoint['model'].keys():
             if 'c_attn.weight' in name and 'transformer.h' in name and 'bias' not in name:
                 checkpoint['model'][name] = checkpoint['model'][name].transpose(1,0)
@@ -388,27 +389,10 @@ def prepare_model_and_optimizer(args, device):
                 checkpoint['model'][name] = checkpoint['model'][name].transpose(1,0)
             if 'mlp.c_fc' in name and 'transformer.h' in name and 'bias' not in name:
                 checkpoint['model'][name] = checkpoint['model'][name].transpose(1,0)
-            if 'mlp.c_proj' in name and 'transformer.h' in name and 'bias' not in name:
-                checkpoint['model'][name] = checkpoint['model'][name].transpose(1,0)
+            #if 'mlp.c_proj.weight' in name:
+            #    import pdb;pdb.set_trace()
+            #    checkpoint['model'][name] = checkpoint['model'][name].transpose(1,0)
 
-
-        #checkpoint['model']['cls.predictions.decoder.weight'] = torch.cat((checkpoint['model']['cls.predictions.decoder.linear1.weight'], checkpoint['model']['cls.predictions.decoder.linear2.weight'], checkpoint['model']['cls.predictions.decoder.linear3.weight'], checkpoint['model']['cls.predictions.decoder.linear4.weight']), dim = 0)
-        #del checkpoint['model']['cls.predictions.decoder.linear1.weight']
-        #del checkpoint['model']['cls.predictions.decoder.linear2.weight']
-        #del checkpoint['model']['cls.predictions.decoder.linear3.weight']
-        #del checkpoint['model']['cls.predictions.decoder.linear4.weight']
-
-        #checkpoint['model']['cls.predictions.bias'] = torch.cat((checkpoint['model']['cls.predictions.decoder.linear1.bias'], checkpoint['model']['cls.predictions.decoder.linear2.bias'], checkpoint['model']['cls.predictions.decoder.linear3.bias'], checkpoint['model']['cls.predictions.decoder.linear4.bias']), dim=0)
-        #del checkpoint['model']['cls.predictions.decoder.linear1.bias']
-        #del checkpoint['model']['cls.predictions.decoder.linear2.bias']
-        #del checkpoint['model']['cls.predictions.decoder.linear3.bias']
-        #del checkpoint['model']['cls.predictions.decoder.linear4.bias']
-
-
-        checkpoint['model']['cls.predictions.decoder.weight'] = torch.cat((checkpoint['model']['cls.predictions.decoder.weight'], torch.zeros(6, 1024)), dim = 0)
-        checkpoint['model']['cls.predictions.bias'] = torch.cat((checkpoint['model']['cls.predictions.bias'], torch.zeros(6)), dim = 0)
-
-        del checkpoint['model']['bert.embeddings.position_ids']
 
         keys = list(checkpoint['model'].keys())[:]
 
@@ -652,7 +636,8 @@ def main():
             if args.allreduce_post_accumulation:
                 overflow_buf = torch.cuda.IntTensor([0])
 
-            relevant_files = [250, 56, 162, 22, 240, 153]
+            relevant_files = [26, 68, 22, 196, 104, 254, 27, 214, 230, 223, 9, 97, 137, 143, 85, 87, 218, 13, 40, 34, 86, 242, 241, 179, 62, 41, 0, 111, 198, 253, 224, 152, 96, 17, 1, 80, 187, 114, 255, 11, 23, 170, 36, 32, 202, 5, 74, 110, 146, 122, 67, 120]
+            eval_loss = []
             for f_id in range(f_start_id + 1 , len(files)):
                 if not f_id in relevant_files:
                     continue
@@ -700,6 +685,7 @@ def main():
                     #    loss.backward()
 
                     average_loss += loss.item()
+                    eval_loss.append(loss.item())
 
                     #if training_steps % args.gradient_accumulation_steps == 0:
                     #    lr_scheduler.step()  # learning rate warmup
@@ -762,6 +748,7 @@ def main():
                 train_dataloader, data_file = dataset_future.result(timeout=None)
 
             epoch += 1
+            print("Final loss is "+str(sum(eval_loss)/len(eval_loss)))
 
 
 if __name__ == "__main__":
