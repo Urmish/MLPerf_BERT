@@ -380,8 +380,17 @@ def prepare_model_and_optimizer(args, device):
         else:
             checkpoint = torch.load(args.init_checkpoint, map_location="cpu")
         import copy
+        checkpoint['model']['transformer.wte.weight'] = torch.cat((checkpoint['model']['transformer.wte.weight'],torch.ones(4, 1600)*-10000), dim = 0)
+        for name in checkpoint['model'].keys():
+            if 'c_attn.weight' in name and 'transformer.h' in name and 'bias' not in name:
+                checkpoint['model'][name] = checkpoint['model'][name].transpose(1,0)
+            if 'c_proj.weight' in name and 'transformer.h' in name and 'bias' not in name:
+                checkpoint['model'][name] = checkpoint['model'][name].transpose(1,0)
+            if 'mlp.c_fc' in name and 'transformer.h' in name and 'bias' not in name:
+                checkpoint['model'][name] = checkpoint['model'][name].transpose(1,0)
+            if 'mlp.c_proj' in name and 'transformer.h' in name and 'bias' not in name:
+                checkpoint['model'][name] = checkpoint['model'][name].transpose(1,0)
 
-        checkpoint['model']['bert.embeddings.word_embeddings.weight'] = torch.cat((checkpoint['model']['bert.embeddings.word_embeddings.weight'], torch.zeros(6, 1024)), dim = 0)
 
         #checkpoint['model']['cls.predictions.decoder.weight'] = torch.cat((checkpoint['model']['cls.predictions.decoder.linear1.weight'], checkpoint['model']['cls.predictions.decoder.linear2.weight'], checkpoint['model']['cls.predictions.decoder.linear3.weight'], checkpoint['model']['cls.predictions.decoder.linear4.weight']), dim = 0)
         #del checkpoint['model']['cls.predictions.decoder.linear1.weight']
@@ -711,8 +720,8 @@ def main():
                     elif training_steps % (args.log_freq * args.gradient_accumulation_steps) == 0:
                         if is_main_process():
                             dllogger.log(step=(epoch, global_step, ), data={"average_loss": average_loss / (args.log_freq * divisor),
-                                                                            "step_loss": loss.item() * args.gradient_accumulation_steps / divisor,
-                                                                            "learning_rate": optimizer.param_groups[0]['lr']})#,
+                                                                            "step_loss": loss.item() * args.gradient_accumulation_steps / divisor,})
+                                                                            #"learning_rate": optimizer.param_groups[0]['lr']})#,
                                                                             #"mlm_loss" : mlm_loss.item(),
                                                                             #"ns_loss" : ns_loss.item()})
                         average_loss = 0
