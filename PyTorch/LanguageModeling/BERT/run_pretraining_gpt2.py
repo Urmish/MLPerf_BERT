@@ -561,7 +561,14 @@ def main():
         # Note: We loop infinitely over epochs, termination is handled via iteration count
         while True:
             thread = None
-            restored_data_loader = None
+            restored_data_loader = None 
+
+            files_eval = [os.path.join(args.input_dir, f) for f in os.listdir(args.input_dir) if
+                         os.path.isfile(os.path.join(args.input_dir, f)) and ('test' in f)]
+            files_eval.sort()
+            num_files_eval = len(files_eval)
+            f_start_id_eval = 0
+
             if not args.resume_from_checkpoint or epoch > 0 or (args.phase2 and global_step < 1) or args.init_checkpoint:
                 files = [os.path.join(args.input_dir, f) for f in os.listdir(args.input_dir) if
                          os.path.isfile(os.path.join(args.input_dir, f)) and ('training' in f or 'train' in f)]
@@ -696,6 +703,48 @@ def main():
                                             'data_loader': None if global_step >= args.max_steps else train_dataloader}, output_save_file)
 
                                 most_recent_ckpts_paths.append(output_save_file)
+                            eval_loss=0.0
+                            eval_batch_size = 8
+                            subsample_eval = 0.2
+                            eval_files=0
+                            num_files_to_evaluate = int(math.ceil(subsample_eval * num_files_eval))
+                            old_state = random.getstate()
+                            random.seed(123)
+                            files_to_eval = random.sample(range(num_files_eval), k=num_files_to_evaluate)
+                            random.setstate(old_state)  # Return the old pseudorandomness so that we don't mess with run
+                            print("Evaluating files")
+                            print(files_to_eval)
+                            for f_id_eval in range(f_start_id_eval + 1 , len(files_eval)):
+                                if files_to_eval and not f_id_eval in files_to_eval:
+                                    continue
+                                data_file_eval = files_eval[f_id_eval]
+                                eval_data = pretraining_dataset(data_file_eval, args.max_predictions_per_seq)
+                                eval_sampler = RandomSampler(eval_data)
+                                eval_dataloader = DataLoader(eval_data, sampler=eval_sampler,
+                                              batch_size=eval_batch_size,
+                                              num_workers=4, worker_init_fn=worker_init,
+                                              pin_memory=True)
+                                dataset_future_eval = pool.submit(create_pretraining_dataset, data_file_eval, args.max_predictions_per_seq, shared_file_list, args, worker_init)
+                                eval_iter = tqdm(eval_dataloader, desc="Eval Iteration", disable=True) if is_main_process() else eval_dataloader
+                                final_step = None
+
+                                for step_eval, batch_eval in enumerate(eval_iter):
+                                    batch_eval = [t.to(device) for t in batch_eval]
+                                    input_ids_eval = batch_eval[0]
+                                    labels_eval = input_ids_eval
+                                    loss_eval = model(input_ids_eval, None, None, None, None, None, None, None, None,labels_eval,None,None,None,False)[0]
+                                    eval_loss += loss_eval.item()
+                                    eval_files+=1
+                                del eval_dataloader
+                                #eval_dataloader, data_file_eval = dataset_future_eval.result(timeout=None)
+                            eval_loss = eval_loss/(eval_files+1)
+                            print("Validation loss is "+str(eval_loss))
+                            file_name_eval_loss = "validation_total_loss.txt"
+                            eval_file_write = open(os.path.join(args.output_dir,file_name_eval_loss),"a")
+                            eval_file_write.write(str(eval_loss)+"\n")
+                            eval_file_write.close()
+ 
+
 
                         # Exiting the training due to hitting max steps, or being sent a 
                         # timeout from the cluster scheduler
