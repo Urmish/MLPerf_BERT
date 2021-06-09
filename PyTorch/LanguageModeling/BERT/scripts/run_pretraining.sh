@@ -14,26 +14,26 @@
 # limitations under the License.
 
 echo "Container nvidia build = " $NVIDIA_BUILD_ID
-train_batch_size=${1:-64}
-learning_rate=${2:-"1.5e-4"}
+train_batch_size=${1:-128}
+learning_rate=${2:-"5e-5"}
 precision=${3:-"fp16"}
-num_gpus=${4:-8}
+num_gpus=${4:-4}
 warmup_proportion=${5:-"0.01"}
 train_steps=${6:-300000}
-save_checkpoint_steps=${7:-10000}
+save_checkpoint_steps=${7:-2000}
 resume_training=${8:-"false"}
 create_logfile=${9:-"true"}
 accumulate_gradients=${10:-"true"}
-gradient_accumulation_steps=${11:-64}
+gradient_accumulation_steps=${11:-16}
 seed=${12:-12439}
-job_name=${13:-"bert_lamb_pretraining"}
+job_name=${13:-"gpt2xl_2enc_notying_pretraining"}
 allreduce_post_accumulation=${14:-"true"}
 allreduce_post_accumulation_fp16=${15:-"true"}
-disable_weight_tie=${16:-"false"}
-DATASET=openweb_docker_data
+disable_weight_tie=${16:-"true"}
+DATASET=wikitext103
 echo "USING SS1024!!!"
 DATA_DIR_PHASE1=${17:-$BERT_PREP_WORKING_DIR/${DATASET}/}
-BERT_CONFIG=gpt2_xl_config.json
+BERT_CONFIG=gpt2xl_2enc.json
 DATASET2=hdf5_lower_case_1_seq_len_512_max_pred_80_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5_shard_1472_test_split_10/books_wiki_en_corpus/training # change this for other datasets
 CODEDIR=${18:-"/workspace/bert"}
 init_checkpoint=${19:-"None"}

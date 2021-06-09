@@ -359,10 +359,16 @@ def prepare_model_and_optimizer(args, device):
     if args.disable_weight_tying:
         import torch.nn as nn
         print ("WARNING!!!!!!! Disabling weight tying for this run")
-        print ("BEFORE ", model.cls.predictions.decoder.weight is model.bert.embeddings.word_embeddings.weight)
-        model.cls.predictions.decoder.weight = torch.nn.Parameter(model.cls.predictions.decoder.weight.clone().detach())
-        print ("AFTER ", model.cls.predictions.decoder.weight is model.bert.embeddings.word_embeddings.weight)
-        assert (model.cls.predictions.decoder.weight is model.bert.embeddings.word_embeddings.weight) == False
+        print ("BEFORE ", model.lm_head.weight is model.transformer.wte.weight)
+        model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight.clone().detach())
+        print ("AFTER ", model.lm_head.weight is model.transformer.wte.weight)
+        assert (model.lm_head.weight is model.transformer.wte.weight) == False
+
+        #for name, param in model.named_parameters():
+        #    if args.local_rank == 0:
+        #        print("Before", name, param.shape)
+        #    else:
+        #        print(model.__class__.__name__)
 
     checkpoint = None
     if not args.resume_from_checkpoint:
@@ -449,8 +455,8 @@ def prepare_model_and_optimizer(args, device):
 
     if args.disable_weight_tying:
        # Sanity Check that new param is in optimizer
-       print ("SANITY CHECK OPTIMIZER: ", id(model.module.cls.predictions.decoder.weight) in [id(g) for g in optimizer.param_groups[0]['params']])
-       assert id(model.module.cls.predictions.decoder.weight) in [id(g) for g in optimizer.param_groups[0]['params']]
+       print ("SANITY CHECK OPTIMIZER: ", id(model.lm_head.weight) in [id(g) for g in optimizer.param_groups[0]['params']])
+       assert id(model.lm_head.weight) in [id(g) for g in optimizer.param_groups[0]['params']]
 
     return model, optimizer, lr_scheduler, checkpoint, global_step, criterion
 
@@ -533,8 +539,8 @@ def main():
 
     if args.disable_weight_tying:
        # Sanity Check that new param is in optimizer
-       print ("SANITY CHECK OPTIMIZER: ", id(model.module.cls.predictions.decoder.weight) in [id(g) for g in optimizer.param_groups[0]['params']])
-       assert id(model.module.cls.predictions.decoder.weight) in [id(g) for g in optimizer.param_groups[0]['params']]
+       print ("SANITY CHECK OPTIMIZER: ", id(model.lm_head.weight) in [id(g) for g in optimizer.param_groups[0]['params']])
+       assert id(model.lm_head.weight) in [id(g) for g in optimizer.param_groups[0]['params']]
 
     print (f"SAVING EVERY {args.num_steps_per_checkpoint} STEPS!")
 
