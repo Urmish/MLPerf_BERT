@@ -37,7 +37,7 @@ BERT_CONFIG=gpt2xl_2enc.json
 DATASET2=hdf5_lower_case_1_seq_len_512_max_pred_80_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5_shard_1472_test_split_10/books_wiki_en_corpus/training # change this for other datasets
 CODEDIR=${18:-"/workspace/bert"}
 init_checkpoint=${19:-"None"}
-RESULTS_DIR=$CODEDIR/results_gpt2_bs512_correctLR_WD_2
+RESULTS_DIR=$CODEDIR/results_gpt2_2enc_no_tying_fp16_rerun
 CHECKPOINTS_DIR=$RESULTS_DIR/checkpoints_${job_name}
 
 mkdir -p $CHECKPOINTS_DIR

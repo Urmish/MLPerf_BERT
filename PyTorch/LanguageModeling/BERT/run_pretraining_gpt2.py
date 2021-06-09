@@ -710,7 +710,7 @@ def main():
 
                                 most_recent_ckpts_paths.append(output_save_file)
                             eval_loss=0.0
-                            eval_batch_size = 8
+                            eval_batch_size = 1 
                             subsample_eval = 0.2
                             eval_files=0
                             num_files_to_evaluate = int(math.ceil(subsample_eval * num_files_eval))
