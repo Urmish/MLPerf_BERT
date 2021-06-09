@@ -720,6 +720,8 @@ def main():
                             random.setstate(old_state)  # Return the old pseudorandomness so that we don't mess with run
                             print("Evaluating files")
                             print(files_to_eval)
+                            model.eval()
+                            print("in eval mode")
                             for f_id_eval in range(f_start_id_eval + 1 , len(files_eval)):
                                 if files_to_eval and not f_id_eval in files_to_eval:
                                     continue
@@ -749,8 +751,8 @@ def main():
                             eval_file_write = open(os.path.join(args.output_dir,file_name_eval_loss),"a")
                             eval_file_write.write(str(eval_loss)+"\n")
                             eval_file_write.close()
- 
-
+                            model.train()
+                            print("in train mode")
 
                         # Exiting the training due to hitting max steps, or being sent a 
                         # timeout from the cluster scheduler

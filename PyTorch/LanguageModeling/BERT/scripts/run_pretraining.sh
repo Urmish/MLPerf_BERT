@@ -20,7 +20,7 @@ precision=${3:-"fp16"}
 num_gpus=${4:-4}
 warmup_proportion=${5:-"0.01"}
 train_steps=${6:-300000}
-save_checkpoint_steps=${7:-2000}
+save_checkpoint_steps=${7:-1000}
 resume_training=${8:-"false"}
 create_logfile=${9:-"true"}
 accumulate_gradients=${10:-"true"}
@@ -37,7 +37,7 @@ BERT_CONFIG=gpt2xl_2enc.json
 DATASET2=hdf5_lower_case_1_seq_len_512_max_pred_80_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5_shard_1472_test_split_10/books_wiki_en_corpus/training # change this for other datasets
 CODEDIR=${18:-"/workspace/bert"}
 init_checkpoint=${19:-"None"}
-RESULTS_DIR=$CODEDIR/results_gpt2_2enc_no_tying_fp16_rerun
+RESULTS_DIR=$CODEDIR/results_gpt2_2enc_no_tying_fp16_correct_eval
 CHECKPOINTS_DIR=$RESULTS_DIR/checkpoints_${job_name}
 
 mkdir -p $CHECKPOINTS_DIR
