@@ -17,11 +17,11 @@ echo "Container nvidia build = " $NVIDIA_BUILD_ID
 train_batch_size=${1:-64}
 learning_rate=${2:-"1.5e-4"}
 precision=${3:-"fp16"}
-num_gpus=${4:-8}
+num_gpus=${4:-1}
 warmup_proportion=${5:-"0.01"}
 train_steps=${6:-300000}
 save_checkpoint_steps=${7:-10000}
-resume_training=${8:-"false"}
+resume_training=${8:-"true"}
 create_logfile=${9:-"true"}
 accumulate_gradients=${10:-"true"}
 gradient_accumulation_steps=${11:-64}
@@ -36,8 +36,8 @@ DATA_DIR_PHASE1=${17:-$BERT_PREP_WORKING_DIR/${DATASET}/}
 BERT_CONFIG=gpt2_xl_config.json
 DATASET2=hdf5_lower_case_1_seq_len_512_max_pred_80_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5_shard_1472_test_split_10/books_wiki_en_corpus/training # change this for other datasets
 CODEDIR=${18:-"/workspace/bert"}
-init_checkpoint=${19:-"None"}
-RESULTS_DIR=$CODEDIR/results_gpt2_bs512_correctLR_WD_2
+init_checkpoint=${19:-"results_gpt2_bs512_correctLR_WD/checkpoints_bert_lamb_pretraining/ckpt_9989.pt"}
+RESULTS_DIR=$CODEDIR/temp
 CHECKPOINTS_DIR=$RESULTS_DIR/checkpoints_${job_name}
 
 mkdir -p $CHECKPOINTS_DIR
@@ -98,7 +98,7 @@ fi
 
 echo $DATA_DIR_PHASE1
 INPUT_DIR=$DATA_DIR_PHASE1
-CMD=" $CODEDIR/run_pretraining_gpt2.py"
+CMD=" $CODEDIR/run_pretraining_gpt2_load.py"
 CMD+=" --input_dir=$DATA_DIR_PHASE1"
 CMD+=" --output_dir=$CHECKPOINTS_DIR"
 CMD+=" --config_file=$BERT_CONFIG"
@@ -128,7 +128,7 @@ if [ "$disable_weight_tie" == "false" ] ; then
 	CMD+=" --json-summary ${RESULTS_DIR}/dllogger.json "
 fi
 
-CMD="python3 -m torch.distributed.launch --nproc_per_node=$num_gpus $CMD "
+CMD="python3 -m torch.distributed.launch --nproc_per_node=$num_gpus $CMD"
 
 
 if [ "$create_logfile" = "true" ] ; then

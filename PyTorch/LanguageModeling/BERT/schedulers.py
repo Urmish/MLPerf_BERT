@@ -65,6 +65,23 @@ class CosineWarmUpScheduler(LRScheduler):
         else:
             return [base_lr * (0.5 * (1.0 + torch.cos(math.pi + progress))) for base_lr in self.base_lrs]
 
+class CosineWarmUpSchedulerWithMinVal(LRScheduler):
+    """
+    Applies a warm up period to the learning rate.
+    """
+
+    def __init__(self, optimizer, warmup, total_steps, last_epoch=-1):
+        self.warmup = warmup
+        self.total_steps = total_steps
+        super(CosineWarmUpSchedulerWithMinVal, self).__init__(optimizer, last_epoch)
+
+    def get_lr(self):
+        progress = self.last_epoch / self.total_steps
+        if progress < self.warmup:
+            return [base_lr * progress / self.warmup for base_lr in self.base_lrs]
+        else:
+            return [base_lr * max(0.1,0.5 * (1.0 + math.cos(math.pi*progress))) for base_lr in self.base_lrs]
+
 
 class ConstantWarmUpScheduler(LRScheduler):
     """

@@ -30,14 +30,14 @@ job_name=${13:-"bert_lamb_pretraining"}
 allreduce_post_accumulation=${14:-"true"}
 allreduce_post_accumulation_fp16=${15:-"true"}
 disable_weight_tie=${16:-"false"}
-DATASET=openweb_docker_data
-echo "USING SS1024!!!"
+DATASET=openweb_docker_data/
+echo "USING SS2048!!!"
 DATA_DIR_PHASE1=${17:-$BERT_PREP_WORKING_DIR/${DATASET}/}
-BERT_CONFIG=gpt2_xl_config.json
+BERT_CONFIG=gpt3_13b_config_4enc_50260.json
 DATASET2=hdf5_lower_case_1_seq_len_512_max_pred_80_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5_shard_1472_test_split_10/books_wiki_en_corpus/training # change this for other datasets
 CODEDIR=${18:-"/workspace/bert"}
 init_checkpoint=${19:-"None"}
-RESULTS_DIR=$CODEDIR/results_gpt2_bs512_correctLR_WD_2
+RESULTS_DIR=$CODEDIR/results_gpt3_4enc_bs512
 CHECKPOINTS_DIR=$RESULTS_DIR/checkpoints_${job_name}
 
 mkdir -p $CHECKPOINTS_DIR
@@ -98,14 +98,14 @@ fi
 
 echo $DATA_DIR_PHASE1
 INPUT_DIR=$DATA_DIR_PHASE1
-CMD=" $CODEDIR/run_pretraining_gpt2.py"
+CMD=" $CODEDIR/run_pretraining_gpt3.py"
 CMD+=" --input_dir=$DATA_DIR_PHASE1"
 CMD+=" --output_dir=$CHECKPOINTS_DIR"
 CMD+=" --config_file=$BERT_CONFIG"
 CMD+=" --bert_model=bert-large-uncased"
 CMD+=" --train_batch_size=$train_batch_size"
-CMD+=" --max_seq_length=1024"
-CMD+=" --max_predictions_per_seq=1023"
+CMD+=" --max_seq_length=2048"
+CMD+=" --max_predictions_per_seq=2047"
 CMD+=" --max_steps=$train_steps"
 CMD+=" --warmup_proportion=$warmup_proportion"
 CMD+=" --num_steps_per_checkpoint=$save_checkpoint_steps"
@@ -128,7 +128,7 @@ if [ "$disable_weight_tie" == "false" ] ; then
 	CMD+=" --json-summary ${RESULTS_DIR}/dllogger.json "
 fi
 
-CMD="python3 -m torch.distributed.launch --nproc_per_node=$num_gpus $CMD "
+CMD="python3 -m torch.distributed.launch --nproc_per_node=$num_gpus $CMD"
 
 
 if [ "$create_logfile" = "true" ] ; then
